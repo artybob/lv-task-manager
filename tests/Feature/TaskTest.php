@@ -2,57 +2,72 @@
 
 namespace Tests\Unit;
 
-use PHPUnit\Framework\TestCase;
-
-use App\Models\Task;
+use Tests\TestCase;
 use App\Models\User;
+use App\Models\Task;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 class TaskTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Создаем тестового пользователя
+        $this->user = User::factory()->create([
+            'email' => 'test@example.com',
+            'password' => bcrypt('password')
+        ]);
+
+        // Создаем тестовый токен
+        $this->token = $this->user->createToken('test-token')->plainTextToken;
+    }
+
     public function test_user_can_create_task()
     {
-        $user = User::factory()->create();
-        $this->actingAs($user);
-
-        $response = $this->postJson('/api/tasks', [
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer ' . $this->token,
+        ])->postJson('/api/tasks', [
             'title' => 'Test Task',
             'description' => 'Test Description'
         ]);
 
         $response->assertStatus(201)
-            ->assertJson(['title' => 'Test Task']);
+            ->assertJsonStructure([
+                'id',
+                'title',
+                'description',
+                'status',
+                'user_id',
+                'created_at'
+            ])
+            ->assertJson([
+                'title' => 'Test Task',
+                'status' => 'new'
+            ]);
     }
 
     public function test_user_cannot_update_others_task()
     {
-        $user1 = User::factory()->create();
-        $user2 = User::factory()->create();
-        $task = Task::factory()->create(['user_id' => $user1->id]);
+        $otherUser = User::factory()->create();
+        $task = Task::factory()->forUser($otherUser)->create();
 
-        $this->actingAs($user2);
-
-        $response = $this->putJson("/api/tasks/{$task->id}", [
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer ' . $this->token,
+        ])->putJson("/api/tasks/{$task->id}", [
             'title' => 'Updated Title'
         ]);
 
         $response->assertForbidden();
     }
 
-    public function test_task_creation()
+    public function test_task_has_default_status()
     {
-        $user = User::factory()->create();
-        $this->actingAs($user);
-
-        $response = $this->postJson('/api/tasks', [
-            'title' => 'Test Task'
+        $task = Task::factory()->forUser($this->user)->create([
         ]);
 
-        $response->assertJsonFragment([
-            'title' => 'Test Task',
-            'status' => 'new'
-        ]);
+        $this->assertEquals('new', $task->status);
     }
 }

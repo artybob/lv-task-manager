@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Ramsey\Uuid\Uuid;
 
 class TaskFactory extends Factory
 {
@@ -13,14 +14,48 @@ class TaskFactory extends Factory
     public function definition()
     {
         return [
-            'id' => \Ramsey\Uuid\Uuid::uuid4()->toString(),
-            'title' => $this->faker->sentence(3),
-            'description' => $this->faker->paragraph,
+            'id' => Uuid::uuid4()->toString(),
+            'title' => $this->faker->sentence(4),
+            'description' => $this->faker->paragraph(),
             'status' => $this->faker->randomElement(['new', 'in_progress', 'completed']),
-            'user_id' => function () {
-                return \App\Models\User::factory()->create()->id;
-            },
-            'created_at' => $this->faker->dateTimeBetween('-1 month'),
+            'user_id' => User::factory(),
+            'created_at' => $this->faker->dateTimeBetween('-1 year', 'now'),
         ];
+    }
+
+    public function forUser(User $user)
+    {
+        return $this->state(function (array $attributes) use ($user) {
+            return [
+                'user_id' => $user->id,
+            ];
+        });
+    }
+
+    public function newTask()
+    {
+        return $this->state(function (array $attributes) {
+            return [
+                'status' => 'new',
+            ];
+        });
+    }
+
+    public function inProgress()
+    {
+        return $this->state(function (array $attributes) {
+            return [
+                'status' => 'in_progress',
+            ];
+        });
+    }
+
+    public function completed()
+    {
+        return $this->state(function (array $attributes) {
+            return [
+                'status' => 'completed',
+            ];
+        });
     }
 }
